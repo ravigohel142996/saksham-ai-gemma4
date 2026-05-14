@@ -113,7 +113,7 @@ hr { border-color: rgba(249,115,22,0.2) !important; }
 try:
     api_key = st.secrets["GOOGLE_API_KEY"]
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemma-3-27b-it")
+    model = genai.GenerativeModel("gemma-2-9b-it")
     API_READY = True
 except Exception:
     API_READY = False
@@ -240,7 +240,7 @@ if st.session_state.mode == "Marksheet Analysis":
                 image.save(buf, format="PNG")
                 img_bytes = buf.getvalue()
                 
-                vision_model = genai.GenerativeModel("gemma-3-27b-it")
+                vision_model = genai.GenerativeModel("gemini-1.5-flash")
                 
                 prompt = f"""{SYSTEM_PROMPT}
 
