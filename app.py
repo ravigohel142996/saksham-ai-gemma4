@@ -1,6 +1,5 @@
 import streamlit as st
-from google import genai
-from google.genai import types
+import google.generativeai as genai
 from PIL import Image
 import io
 import base64
@@ -62,12 +61,11 @@ hr { border-color: rgba(249,115,22,0.2) !important; }
 
 # ── API Setup (NEW google-genai SDK) ─────────────────────────────────────────
 try:
-    client = genai.Client(api_key=st.secrets["GOOGLE_API_KEY"])
-    MODEL = "gemini-2.0-flash"
+    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+    model = genai.GenerativeModel("gemini-1.5-flash-latest")
     API_READY = True
 except Exception as e:
     API_READY = False
-    st.error(f"API Setup Error: {e}")
 
 # ── System Prompt ─────────────────────────────────────────────────────────────
 SYSTEM_PROMPT = """You are SakshamAI — a compassionate, expert career counselor for first-generation college students in India.
@@ -96,17 +94,10 @@ Always end with an encouraging line in the student's language."""
 def ask_gemini(prompt_text, image_bytes=None):
     try:
         if image_bytes:
-            image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg")
-            text_part = types.Part.from_text(text=prompt_text)
-            response = client.models.generate_content(
-                model=MODEL,
-                contents=[text_part, image_part]
-            )
+            img = Image.open(io.BytesIO(image_bytes))
+            response = model.generate_content([prompt_text, img])
         else:
-            response = client.models.generate_content(
-                model=MODEL,
-                contents=prompt_text
-            )
+            response = model.generate_content(prompt_text)
         return response.text
     except Exception as e:
         return f"❌ Error: {str(e)}"
