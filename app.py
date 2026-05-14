@@ -1,8 +1,8 @@
 import streamlit as st
-import google.generativeai as genai
-import base64
+from google import genai
+from google.genai import types
 from PIL import Image
-import io
+import io, base64
 
 # ── Page config ──────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -113,7 +113,7 @@ hr { border-color: rgba(249,115,22,0.2) !important; }
 try:
     api_key = st.secrets["GOOGLE_API_KEY"]
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-pro")
     API_READY = True
 except Exception:
     API_READY = False
@@ -240,7 +240,7 @@ if st.session_state.mode == "Marksheet Analysis":
                 image.save(buf, format="PNG")
                 img_bytes = buf.getvalue()
                 
-                vision_model = genai.GenerativeModel("gemini-1.5-flash")
+                vision_model = genai.GenerativeModel("gemini-pro-vision")
                 
                 prompt = f"""{SYSTEM_PROMPT}
 
