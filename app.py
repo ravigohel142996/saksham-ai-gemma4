@@ -1,18 +1,13 @@
 import streamlit as st
-import google.generativeai as genai
+import requests
 from PIL import Image
 import io
 import base64
 
 # ── Page config ───────────────────────────────────────────────────────────────
-st.set_page_config(
-    page_title="SakshamAI – Apna Career Counselor",
-    page_icon="🎓",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+st.set_page_config(page_title="SakshamAI", page_icon="🎓", layout="wide")
 
-# ── Custom CSS ────────────────────────────────────────────────────────────────
+# ── CSS ───────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;800&display=swap');
@@ -20,309 +15,181 @@ html, body, [class*="css"] { font-family: 'Baloo 2', sans-serif; }
 .stApp { background: linear-gradient(135deg, #0f1117 0%, #1a1f2e 100%); }
 .hero-title {
     font-size: 3rem; font-weight: 800;
-    background: linear-gradient(90deg, #f97316, #fb923c, #fbbf24);
+    background: linear-gradient(90deg, #f97316, #fbbf24);
     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    text-align: center; margin-bottom: 0.2rem;
+    text-align: center;
 }
-.hero-subtitle { text-align: center; color: #94a3b8; font-size: 1.1rem; margin-bottom: 1.5rem; }
+.hero-sub { text-align:center; color:#94a3b8; font-size:1.1rem; margin-bottom:1.5rem; }
 .chat-user {
-    background: linear-gradient(135deg, #1e3a5f, #1e40af);
-    border-radius: 18px 18px 4px 18px; padding: 0.8rem 1.2rem;
-    color: #e2e8f0; margin: 0.4rem 0; max-width: 80%; margin-left: auto;
+    background: linear-gradient(135deg,#1e3a5f,#1e40af);
+    border-radius:18px 18px 4px 18px; padding:0.8rem 1.2rem;
+    color:#e2e8f0; margin:0.4rem 0; max-width:80%; margin-left:auto;
 }
 .chat-bot {
-    background: rgba(249,115,22,0.12); border: 1px solid rgba(249,115,22,0.25);
-    border-radius: 18px 18px 18px 4px; padding: 0.8rem 1.2rem;
-    color: #e2e8f0; margin: 0.4rem 0; max-width: 85%;
+    background:rgba(249,115,22,0.12); border:1px solid rgba(249,115,22,0.25);
+    border-radius:18px 18px 18px 4px; padding:0.8rem 1.2rem;
+    color:#e2e8f0; margin:0.4rem 0; max-width:85%;
 }
 .badge {
-    display: inline-block; background: rgba(249,115,22,0.2); color: #fb923c;
-    border: 1px solid #fb923c; border-radius: 20px;
-    padding: 0.2rem 0.8rem; font-size: 0.75rem; font-weight: 600; margin: 0.2rem;
+    display:inline-block; background:rgba(249,115,22,0.2); color:#fb923c;
+    border:1px solid #fb923c; border-radius:20px;
+    padding:0.2rem 0.8rem; font-size:0.75rem; font-weight:600; margin:0.2rem;
 }
-.feature-card {
-    background: rgba(255,255,255,0.05); border: 1px solid rgba(249,115,22,0.3);
-    border-radius: 16px; padding: 1.2rem; margin: 0.5rem 0; color: #e2e8f0;
-}
-.feature-card h4 { color: #fb923c; margin: 0 0 0.4rem 0; }
-.stButton > button {
-    background: linear-gradient(90deg, #f97316, #ea580c) !important;
-    color: white !important; border: none !important; border-radius: 12px !important;
-    font-weight: 600 !important; width: 100%;
+.stButton>button {
+    background:linear-gradient(90deg,#f97316,#ea580c) !important;
+    color:white !important; border:none !important;
+    border-radius:12px !important; font-weight:600 !important; width:100%;
 }
 [data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #0f1117, #1a1f2e) !important;
-    border-right: 1px solid rgba(249,115,22,0.2) !important;
+    background:linear-gradient(180deg,#0f1117,#1a1f2e) !important;
+    border-right:1px solid rgba(249,115,22,0.2) !important;
 }
-.stMarkdown p { color: #cbd5e1; }
-hr { border-color: rgba(249,115,22,0.2) !important; }
+.stMarkdown p { color:#cbd5e1; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── API Setup (NEW google-genai SDK) ─────────────────────────────────────────
-try:
-    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-    model = genai.GenerativeModel("gemini-2.0-flash-exp")
-    API_READY = True
-except Exception as e:
-    API_READY = False
+# ── API (REST — no gRPC!) ─────────────────────────────────────────────────────
+API_KEY = st.secrets.get("GOOGLE_API_KEY", "")
+MODEL   = "gemini-1.5-flash"
+URL     = f"https://generativelanguage.googleapis.com/v1/models/{MODEL}:generateContent?key={API_KEY}"
+API_READY = bool(API_KEY)
 
-# ── System Prompt ─────────────────────────────────────────────────────────────
-SYSTEM_PROMPT = """You are SakshamAI — a compassionate, expert career counselor for first-generation college students in India.
+SYSTEM_PROMPT = """You are SakshamAI — a compassionate career counselor for first-generation college students in India.
+Language rules: Hindi input→Hindi reply, Gujarati→Gujarati, English→English, Hinglish→Hinglish.
+Help with: careers, scholarships, entrance exams, college selection, resume, govt jobs.
+Always be warm, simple, encouraging."""
 
-Their parents may be farmers, laborers, or small business owners with no knowledge of modern careers. You are their ONLY guide.
-
-Language Rules:
-- Hindi input → respond in Hindi (Devanagari)
-- Gujarati input → respond in Gujarati
-- Hinglish input → respond in Hinglish
-- English input → respond in English
-- Use simple, warm, encouraging language
-
-You help with:
-1. Career guidance based on marks/stream
-2. Government scholarships (PM Scholarships, NSP, state schemes, SC/ST/OBC/EWS)
-3. Entrance exams (JEE, NEET, CUET, CLAT, NDA, GUJCET etc.)
-4. College selection for tier-2/3 cities with limited budget
-5. Resume building for freshers
-6. Interview preparation
-7. Government job preparation (SSC, UPSC, Railway, Banking)
-
-Always end with an encouraging line in the student's language."""
-
-# ── Helper: Call Gemini ───────────────────────────────────────────────────────
 def ask_gemini(prompt_text, image_bytes=None):
+    if not API_READY:
+        return "⚠️ API key missing. Please add GOOGLE_API_KEY in Streamlit Secrets."
     try:
+        parts = [{"text": f"{SYSTEM_PROMPT}\n\n{prompt_text}"}]
         if image_bytes:
-            img = Image.open(io.BytesIO(image_bytes))
-            response = model.generate_content([prompt_text, img])
-        else:
-            response = model.generate_content(prompt_text)
-        return response.text
+            b64 = base64.b64encode(image_bytes).decode()
+            parts.append({"inline_data": {"mime_type": "image/jpeg", "data": b64}})
+        payload = {"contents": [{"parts": parts}]}
+        r = requests.post(URL, json=payload, timeout=30)
+        r.raise_for_status()
+        return r.json()["candidates"][0]["content"]["parts"][0]["text"]
+    except requests.exceptions.HTTPError as e:
+        # Try flash-002 if flash fails
+        try:
+            url2 = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key={API_KEY}"
+            r2 = requests.post(url2, json={"contents":[{"parts":[{"text":f"{SYSTEM_PROMPT}\n\n{prompt_text}"}]}]}, timeout=30)
+            r2.raise_for_status()
+            return r2.json()["candidates"][0]["content"]["parts"][0]["text"]
+        except:
+            return f"❌ Error: {str(e)}"
     except Exception as e:
         return f"❌ Error: {str(e)}"
 
-# ── Session State ─────────────────────────────────────────────────────────────
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "language" not in st.session_state:
-    st.session_state.language = "Hindi"
-if "mode" not in st.session_state:
-    st.session_state.mode = "Career Chat"
+# ── Session ───────────────────────────────────────────────────────────────────
+for k,v in [("messages",[]),("language","Hindi"),("mode","Career Chat")]:
+    if k not in st.session_state: st.session_state[k] = v
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("""
-    <div style='text-align:center; padding:1rem 0;'>
-        <div style='font-size:3rem;'>🎓</div>
-        <div style='color:#fb923c; font-weight:800; font-size:1.4rem;'>SakshamAI</div>
-        <div style='color:#64748b; font-size:0.8rem;'>Powered by Gemma 4 • Google Gemini</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("<div style='text-align:center;padding:1rem 0'><div style='font-size:3rem'>🎓</div><div style='color:#fb923c;font-weight:800;font-size:1.4rem'>SakshamAI</div><div style='color:#64748b;font-size:0.8rem'>Powered by Gemini AI</div></div>", unsafe_allow_html=True)
     st.markdown("---")
-
-    st.markdown("<p style='color:#94a3b8; font-size:0.85rem;'>🌐 Apni Bhasha Chuniye</p>", unsafe_allow_html=True)
-    language = st.selectbox("lang", ["Hindi", "Gujarati", "English", "Hinglish"],
-                            index=["Hindi","Gujarati","English","Hinglish"].index(st.session_state.language),
-                            label_visibility="collapsed")
-    st.session_state.language = language
-
-    st.markdown("<p style='color:#94a3b8; font-size:0.85rem; margin-top:1rem;'>🛠️ Mode</p>", unsafe_allow_html=True)
-    mode = st.selectbox("mode", ["Career Chat","Marksheet Analysis","Scholarship Finder","Resume Builder"],
-                        label_visibility="collapsed")
-    st.session_state.mode = mode
-
+    st.markdown("<p style='color:#94a3b8;font-size:0.85rem'>🌐 Bhasha Chuniye</p>", unsafe_allow_html=True)
+    st.session_state.language = st.selectbox("lang", ["Hindi","Gujarati","English","Hinglish"], label_visibility="collapsed")
+    st.markdown("<p style='color:#94a3b8;font-size:0.85rem;margin-top:1rem'>🛠️ Mode</p>", unsafe_allow_html=True)
+    st.session_state.mode = st.selectbox("mode", ["Career Chat","Marksheet Analysis","Scholarship Finder","Resume Builder"], label_visibility="collapsed")
     st.markdown("---")
-    st.markdown("""
-    <div class='feature-card'>
-        <h4>📊 Kya Kar Sakta Hoon?</h4>
-        <p style='font-size:0.85rem; color:#94a3b8; margin:0;'>
-        ✅ Career guidance Hindi/Gujarati mein<br>
-        ✅ Marksheet dekh ke career suggest<br>
-        ✅ Scholarship dhundne mein help<br>
-        ✅ Resume banana<br>
-        ✅ Exam preparation guide<br>
-        ✅ College selection help
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("<div style='background:rgba(255,255,255,0.05);border:1px solid rgba(249,115,22,0.3);border-radius:16px;padding:1.2rem'><p style='color:#fb923c;font-weight:700;margin:0 0 0.5rem'>📊 Features</p><p style='font-size:0.85rem;color:#94a3b8;margin:0'>✅ Career guidance<br>✅ Marksheet analysis<br>✅ Scholarship finder<br>✅ Resume builder<br>✅ Hindi / Gujarati</p></div>", unsafe_allow_html=True)
     st.markdown("---")
-    if st.button("🗑️ Chat Clear Karo"):
+    if st.button("🗑️ Chat Clear"):
         st.session_state.messages = []
         st.rerun()
 
 # ── Header ────────────────────────────────────────────────────────────────────
 st.markdown('<div class="hero-title">🎓 SakshamAI</div>', unsafe_allow_html=True)
-st.markdown('<div class="hero-subtitle">Pehli Baar College Jane Wale Students Ka AI Mentor — Bilkul Free</div>', unsafe_allow_html=True)
-st.markdown("""
-<div style='text-align:center; margin-bottom:1.5rem;'>
-    <span class='badge'>🇮🇳 Hindi</span>
-    <span class='badge'>🇮🇳 Gujarati</span>
-    <span class='badge'>🌐 English</span>
-    <span class='badge'>⚡ Gemini 2.0</span>
-    <span class='badge'>🆓 Free Forever</span>
-</div>
-""", unsafe_allow_html=True)
+st.markdown('<div class="hero-sub">Pehli Baar College Jane Wale Students Ka AI Mentor — Bilkul Free</div>', unsafe_allow_html=True)
+st.markdown("<div style='text-align:center;margin-bottom:1.5rem'><span class='badge'>🇮🇳 Hindi</span><span class='badge'>🇮🇳 Gujarati</span><span class='badge'>🌐 English</span><span class='badge'>⚡ Gemini AI</span><span class='badge'>🆓 Free</span></div>", unsafe_allow_html=True)
 
-# ════════════════════════════════════════════════════════════════════════════
-# MODE: MARKSHEET ANALYSIS
-# ════════════════════════════════════════════════════════════════════════════
-if st.session_state.mode == "Marksheet Analysis":
-    st.markdown("### 📄 Apni Marksheet Upload Karo")
-    st.markdown("<p style='color:#94a3b8;'>10th, 12th ya College marksheet upload karo — main career suggest karunga!</p>", unsafe_allow_html=True)
+mode = st.session_state.mode
+lang = st.session_state.language
 
-    uploaded_file = st.file_uploader("Marksheet ya Result ka Photo", type=["jpg","jpeg","png"])
-    extra_info = st.text_area("Koi aur info? (optional)", placeholder="Jaise: Doctor banna chahta hoon, budget ₹50,000 hai...", height=80)
+# ── MARKSHEET ─────────────────────────────────────────────────────────────────
+if mode == "Marksheet Analysis":
+    st.markdown("### 📄 Marksheet Upload Karo")
+    f = st.file_uploader("Photo upload karo", type=["jpg","jpeg","png"])
+    extra = st.text_area("Extra info (optional)", placeholder="Doctor banna chahta hoon...", height=80)
+    if st.button("🔍 Analyse Karo") and f:
+        with st.spinner("Dekh raha hoon... 🤔"):
+            prompt = f"Marksheet analyse karo. Career options do. Scholarships batao. Language: {lang}. Extra: {extra or 'None'}"
+            result = ask_gemini(prompt, image_bytes=f.read())
+        st.markdown(f'<div class="chat-bot">📊 <b>Analysis:</b><br><br>{result}</div>', unsafe_allow_html=True)
 
-    if st.button("🔍 Career Analyse Karo") and uploaded_file:
-        if not API_READY:
-            st.error("API key set nahi hai!")
-        else:
-            with st.spinner("Teri marksheet dekh raha hoon... 🤔"):
-                image_bytes = uploaded_file.read()
-                prompt = f"""{SYSTEM_PROMPT}
-
-Student ne marksheet upload ki hai. Analyze karo aur do:
-1. Stream aur performance level
-2. Top 5 career options with next steps
-3. Relevant government scholarships
-4. Recommended entrance exams
-5. Encouraging message
-
-Extra info: {extra_info if extra_info else 'None'}
-Language: {st.session_state.language}"""
-                result = ask_gemini(prompt, image_bytes=image_bytes)
-                st.markdown(f'<div class="chat-bot">📊 <b>SakshamAI Ka Analysis:</b><br><br>{result}</div>', unsafe_allow_html=True)
-
-# ════════════════════════════════════════════════════════════════════════════
-# MODE: SCHOLARSHIP FINDER
-# ════════════════════════════════════════════════════════════════════════════
-elif st.session_state.mode == "Scholarship Finder":
+# ── SCHOLARSHIP ───────────────────────────────────────────────────────────────
+elif mode == "Scholarship Finder":
     st.markdown("### 🏆 Scholarship Dhundho")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        category = st.selectbox("Category", ["General","SC","ST","OBC","EWS","Minority"])
-    with col2:
-        state = st.selectbox("State", ["Gujarat","Rajasthan","Maharashtra","UP","MP","Bihar","Other"])
-    with col3:
-        level = st.selectbox("Level", ["10th Pass","12th Pass","Graduation","Post Graduation"])
-    income = st.text_input("Family Annual Income (₹)", placeholder="Jaise: 2,50,000")
+    c1,c2,c3 = st.columns(3)
+    cat   = c1.selectbox("Category", ["General","SC","ST","OBC","EWS","Minority"])
+    state = c2.selectbox("State",    ["Gujarat","Rajasthan","Maharashtra","UP","MP","Bihar","Other"])
+    level = c3.selectbox("Level",    ["10th Pass","12th Pass","Graduation","Post Graduation"])
+    income = st.text_input("Family Income (₹)", placeholder="2,50,000")
+    if st.button("🔍 Dhundo"):
+        with st.spinner("Dhundh raha hoon..."):
+            prompt = f"Scholarships for: Category={cat}, State={state}, Level={level}, Income={income or 'unknown'}. List all central+state schemes with links. Language: {lang}"
+            result = ask_gemini(prompt)
+        st.markdown(f'<div class="chat-bot">🏆 <b>Scholarships:</b><br><br>{result}</div>', unsafe_allow_html=True)
 
-    if st.button("🔍 Scholarship Dhundo"):
-        if not API_READY:
-            st.error("API key set nahi hai!")
-        else:
-            with st.spinner("Scholarships dhundh raha hoon..."):
-                prompt = f"""{SYSTEM_PROMPT}
-
-Find scholarships for:
-- Category: {category}
-- State: {state}
-- Level: {level}
-- Family Income: {income if income else 'Not specified'}
-
-List all central + state scholarships with: name, amount, eligibility, apply link, deadline.
-Language: {st.session_state.language}"""
-                result = ask_gemini(prompt)
-                st.markdown(f'<div class="chat-bot">🏆 <b>Tumhare Liye Scholarships:</b><br><br>{result}</div>', unsafe_allow_html=True)
-
-# ════════════════════════════════════════════════════════════════════════════
-# MODE: RESUME BUILDER
-# ════════════════════════════════════════════════════════════════════════════
-elif st.session_state.mode == "Resume Builder":
+# ── RESUME ────────────────────────────────────────────────────────────────────
+elif mode == "Resume Builder":
     st.markdown("### 📝 Resume Banao")
-    col1, col2 = st.columns(2)
-    with col1:
-        name  = st.text_input("Tumhara Naam", placeholder="Ravi Gohel")
-        phone = st.text_input("Phone Number", placeholder="9876543210")
-        email = st.text_input("Email", placeholder="ravi@gmail.com")
-        city  = st.text_input("Shehar", placeholder="Rajkot, Gujarat")
-    with col2:
-        education = st.text_area("Education", placeholder="12th - 75% - Science\n10th - 80% - Gujarat Board", height=100)
-        skills    = st.text_area("Skills", placeholder="Python, MS Excel, Communication", height=60)
-    goal = st.text_input("Career Goal", placeholder="Software Developer ya Government Job")
+    c1,c2 = st.columns(2)
+    name  = c1.text_input("Naam",   placeholder="Ravi Gohel")
+    phone = c1.text_input("Phone",  placeholder="9876543210")
+    email = c1.text_input("Email",  placeholder="ravi@gmail.com")
+    city  = c1.text_input("Shehar", placeholder="Rajkot, Gujarat")
+    edu   = c2.text_area("Education", placeholder="12th-75%-Science\n10th-80%", height=100)
+    skills= c2.text_area("Skills",   placeholder="Python, Excel", height=60)
+    goal  = st.text_input("Career Goal", placeholder="Software Developer")
+    if st.button("✨ Resume Banao") and name:
+        with st.spinner("Bana raha hoon..."):
+            prompt = f"ATS resume for: Name={name}, Phone={phone}, Email={email}, City={city}, Edu={edu}, Skills={skills}, Goal={goal}. Add project suggestions. English only."
+            result = ask_gemini(prompt)
+        st.markdown(f'<div class="chat-bot">📝 <b>Resume:</b><br><br>{result}</div>', unsafe_allow_html=True)
 
-    if st.button("✨ Resume Generate Karo") and name:
-        if not API_READY:
-            st.error("API key set nahi hai!")
-        else:
-            with st.spinner("Tera resume bana raha hoon..."):
-                prompt = f"""{SYSTEM_PROMPT}
-
-Create a professional ATS-friendly resume for:
-Name: {name} | Phone: {phone} | Email: {email} | City: {city}
-Education: {education} | Skills: {skills} | Goal: {goal}
-
-Include: Professional Summary, Education, Skills, Projects (suggest 2-3 beginner projects), Achievements template, 3 improvement tips.
-Resume must be in English."""
-                result = ask_gemini(prompt)
-                st.markdown(f'<div class="chat-bot">📝 <b>Tera Professional Resume:</b><br><br>{result}</div>', unsafe_allow_html=True)
-
-# ════════════════════════════════════════════════════════════════════════════
-# MODE: CAREER CHAT
-# ════════════════════════════════════════════════════════════════════════════
+# ── CHAT ──────────────────────────────────────────────────────────────────────
 else:
-    # Welcome
+    welcome = {"Hindi":"Namaste! 🙏 Main SakshamAI — career, scholarship, college sab ke liye! Kya poochna hai? 😊",
+               "Gujarati":"નમસ્તે! 🙏 SakshamAI — career counselor. સવાલ પૂછો! 😊",
+               "English":"Hello! 🙏 I'm SakshamAI — ask me about careers, scholarships, colleges! 😊",
+               "Hinglish":"Namaste yaar! 🙏 Career, scholarship, college — sab bataunga! 😊"}
     if not st.session_state.messages:
-        welcome = {
-            "Hindi":    "Namaste! 🙏 Main SakshamAI hoon — tumhara personal career counselor. Career, scholarship, college, exam — kuch bhi poochho! 😊",
-            "Gujarati": "નમસ્તે! 🙏 હું SakshamAI છું — તમારો career counselor. કોઈ પણ સવાલ પૂછો! 😊",
-            "English":  "Hello! 🙏 I'm SakshamAI — your AI career counselor for first-gen students. Ask me anything! 😊",
-            "Hinglish": "Namaste yaar! 🙏 Main SakshamAI hoon — career, scholarship, college sab ke liye! 😊"
-        }
-        st.markdown(f'<div class="chat-bot">🤖 {welcome.get(st.session_state.language, welcome["Hindi"])}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="chat-bot">🤖 {welcome.get(lang, welcome["Hindi"])}</div>', unsafe_allow_html=True)
 
-    # Chat history
-    for msg in st.session_state.messages:
-        css = "chat-user" if msg["role"] == "user" else "chat-bot"
-        icon = "👤" if msg["role"] == "user" else "🤖"
-        st.markdown(f'<div class="{css}">{icon} {msg["content"]}</div>', unsafe_allow_html=True)
+    for m in st.session_state.messages:
+        css = "chat-user" if m["role"]=="user" else "chat-bot"
+        ico = "👤" if m["role"]=="user" else "🤖"
+        st.markdown(f'<div class="{css}">{ico} {m["content"]}</div>', unsafe_allow_html=True)
 
-    # Quick prompts
-    st.markdown("<br><p style='color:#64748b; font-size:0.8rem;'>⚡ Quick Questions:</p>", unsafe_allow_html=True)
-    quick = {
-        "Hindi":    ["12th ke baad kya karein?", "Scholarship kaise milegi?", "Government job ki taiyari?"],
-        "Gujarati": ["12th પછી શું કરવું?",       "Scholarship કેવી રીતે?",    "Sari college kaunsi?"],
-        "English":  ["What after 12th Science?",  "How to get scholarships?", "Best low-budget career?"],
-        "Hinglish": ["12th ke baad best option?", "Free scholarship kaise?",  "Resume kaise banaye?"]
-    }
-    prompts = quick.get(st.session_state.language, quick["Hindi"])
-    cols = st.columns(3)
-    for i, (col, qp) in enumerate(zip(cols, prompts)):
+    st.markdown("<br>", unsafe_allow_html=True)
+    quick = {"Hindi":["12th ke baad kya karein?","Scholarship kaise milegi?","Government job ki taiyari?"],
+             "Gujarati":["12th પછી શું?","Scholarship કેવી?","Govt job?"],
+             "English":["What after 12th?","How to get scholarships?","Best low-budget career?"],
+             "Hinglish":["12th ke baad best?","Free scholarship?","Resume kaise?"]}
+    qs = quick.get(lang, quick["Hindi"])
+    for col,qp in zip(st.columns(3), qs):
         with col:
-            if st.button(f"💬 {qp}", key=f"q{i}"):
+            if st.button(f"💬 {qp}", key=qp):
                 st.session_state.messages.append({"role":"user","content":qp})
-                if API_READY:
-                    full = f"{SYSTEM_PROMPT}\n\nStudent ({st.session_state.language}): {qp}\nSakshamAI:"
-                    reply = ask_gemini(full)
-                    st.session_state.messages.append({"role":"assistant","content":reply})
+                with st.spinner("..."):
+                    r = ask_gemini(f"Student ({lang}): {qp}")
+                st.session_state.messages.append({"role":"assistant","content":r})
                 st.rerun()
 
-    # Text input
-    st.markdown("<br>", unsafe_allow_html=True)
-    user_input = st.text_input("", placeholder="Apna sawaal yahan likhein... (Hindi, Gujarati, ya English mein)",
-                               key="chat_input", label_visibility="collapsed")
-    if st.button("📤 Bhejo", use_container_width=True) and user_input:
+    user_input = st.text_input("", placeholder="Sawaal likhein...", key="inp", label_visibility="collapsed")
+    if st.button("📤 Bhejo") and user_input:
         st.session_state.messages.append({"role":"user","content":user_input})
-        if API_READY:
-            history = "\n".join([
-                f"{'Student' if m['role']=='user' else 'SakshamAI'}: {m['content']}"
-                for m in st.session_state.messages[-6:]
-            ])
-            full = f"{SYSTEM_PROMPT}\n\nConversation:\n{history}\nSakshamAI:"
-            with st.spinner("Soch raha hoon... 🤔"):
-                reply = ask_gemini(full)
-            st.session_state.messages.append({"role":"assistant","content":reply})
-        else:
-            st.session_state.messages.append({"role":"assistant","content":"⚠️ GOOGLE_API_KEY secret add karo Streamlit settings mein."})
+        history = "\n".join([f"{'Student' if m['role']=='user' else 'SakshamAI'}: {m['content']}" for m in st.session_state.messages[-6:]])
+        with st.spinner("Soch raha hoon... 🤔"):
+            reply = ask_gemini(f"Conversation:\n{history}\nSakshamAI:")
+        st.session_state.messages.append({"role":"assistant","content":reply})
         st.rerun()
 
 # ── Footer ────────────────────────────────────────────────────────────────────
 st.markdown("---")
-st.markdown("""
-<div style='text-align:center; color:#475569; font-size:0.8rem; padding:1rem;'>
-    🎓 SakshamAI — Gemma 4 Good Hackathon | Powered by Google Gemini 2.0 |
-    Made with ❤️ for India's First-Generation College Students<br>
-    <span style='color:#fb923c;'>Digital Equity & Inclusivity Track</span>
-</div>
-""", unsafe_allow_html=True)
+st.markdown("<div style='text-align:center;color:#475569;font-size:0.8rem'>🎓 SakshamAI | Gemma 4 Good Hackathon | <span style='color:#fb923c'>Digital Equity & Inclusivity</span></div>", unsafe_allow_html=True)
