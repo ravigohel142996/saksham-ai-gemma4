@@ -113,7 +113,7 @@ hr { border-color: rgba(249,115,22,0.2) !important; }
 try:
     api_key = st.secrets["GOOGLE_API_KEY"]
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemma-2-9b-it")
+    model = genai.GenerativeModel("gemini-1.5-flash")
     API_READY = True
 except Exception:
     API_READY = False
