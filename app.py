@@ -62,7 +62,7 @@ hr { border-color: rgba(249,115,22,0.2) !important; }
 # ── API Setup (NEW google-genai SDK) ─────────────────────────────────────────
 try:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
-    model = genai.GenerativeModel("gemini-1.5-flash-latest")
+    model = genai.GenerativeModel("gemini-2.0-flash-exp")
     API_READY = True
 except Exception as e:
     API_READY = False
