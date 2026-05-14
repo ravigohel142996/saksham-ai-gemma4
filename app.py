@@ -51,7 +51,7 @@ html, body, [class*="css"] { font-family: 'Baloo 2', sans-serif; }
 # ── API (REST — no gRPC!) ─────────────────────────────────────────────────────
 API_KEY = st.secrets.get("GOOGLE_API_KEY", "")
 MODEL   = "gemini-1.5-flash"
-URL     = f"https://generativelanguage.googleapis.com/v1/models/{MODEL}:generateContent?key={API_KEY}"
+URL     = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent?key={API_KEY}"
 API_READY = bool(API_KEY)
 
 SYSTEM_PROMPT = """You are SakshamAI — a compassionate career counselor for first-generation college students in India.
