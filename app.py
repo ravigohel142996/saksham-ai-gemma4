@@ -50,7 +50,7 @@ html, body, [class*="css"] { font-family: 'Baloo 2', sans-serif; }
 
 # ── API (REST — no gRPC!) ─────────────────────────────────────────────────────
 API_KEY = st.secrets.get("GOOGLE_API_KEY", "")
-MODEL   = "gemini-1.5-flash"
+MODEL   = "gemini-2.0-flash"
 URL     = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent?key={API_KEY}"
 API_READY = bool(API_KEY)
 
@@ -74,7 +74,7 @@ def ask_gemini(prompt_text, image_bytes=None):
     except requests.exceptions.HTTPError as e:
         # Try flash-002 if flash fails
         try:
-            url2 = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key={API_KEY}"
+            url2 = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-002:generateContent?key={API_KEY}"
             r2 = requests.post(url2, json={"contents":[{"parts":[{"text":f"{SYSTEM_PROMPT}\n\n{prompt_text}"}]}]}, timeout=30)
             r2.raise_for_status()
             return r2.json()["candidates"][0]["content"]["parts"][0]["text"]
